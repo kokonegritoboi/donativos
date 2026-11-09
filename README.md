@@ -5,6 +5,7 @@ Página web para llevar el control de donativos desde el celular o la computador
 ## Qué hace
 
 - Registra quién donó (nombre, matrícula, grupo, correo institucional y teléfono opcional), la fecha, qué objeto donó, cantidad, valor por unidad y valor total (cantidad × valor).
+- Describe el objeto con detalle: qué es, marca, modelo, tamaño o características, estado (nuevo, buen estado, regular, dañado) y, en electrónicos, si funciona. Si es una pantalla, pide las pulgadas.
 - Donativo múltiple: un interruptor indica si fueron varias piezas y pide cuántas fueron (mínimo 2); la cantidad se multiplica por el valor por unidad.
 - Adjunta una foto del objeto donado (cámara o galería).
 - Para registrar un donativo primero se escanea (cámara o lector USB) o se escribe el código de barras que trae el producto (EAN-13, UPC, EAN-8 u otro). Ese código es el que sale impreso en la hoja y la etiqueta. Si el producto ya se registró antes, se copian nombre, categoría y valor; si no, intenta buscar el nombre en Open Food Facts.

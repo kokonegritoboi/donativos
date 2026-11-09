@@ -97,7 +97,7 @@ input:focus,select:focus,textarea:focus{outline:none;box-shadow:0 0 0 3px rgba(2
 textarea{resize:vertical}
 .scan-input{display:flex;gap:8px;flex-wrap:wrap}
 .scan-input input{flex:1 1 220px;font-size:1.1rem;font-weight:500}
-.hint{font-size:.9rem;min-height:1.3em}
+.hint{font-size:.9rem;min-height:1.3em;font-weight:500}
 fieldset.detail{border:0;padding:0;margin:0;min-width:0;margin-top:16px}
 fieldset.detail:disabled{opacity:.38;pointer-events:none}
 
@@ -112,6 +112,12 @@ fieldset.detail:disabled{opacity:.38;pointer-events:none}
 .switch input:focus-visible + .track{outline:3px solid var(--coral);outline-offset:2px}
 .switch-text{display:flex;flex-direction:column;line-height:1.25}
 .switch-text small{color:var(--muted);font-size:.82rem}
+.help{font-size:.8rem;color:var(--muted)}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg button{flex:1 1 auto;min-height:44px;padding:.5rem .9rem;border:1.5px solid var(--ink);border-radius:999px;background:#fff;font-weight:600;cursor:pointer;transition:background .3s var(--ease),color .3s var(--ease),transform .3s var(--ease)}
+.seg button:active{transform:scale(.97)}
+.seg button.on{background:var(--ink);color:#fff}
+.hint.note{background:rgba(255,255,255,.7);border:1.5px solid var(--ink);border-radius:var(--r-field);padding:.6rem .8rem}
 .qty-wrap input{font-size:1.2rem;font-weight:600}
 
 .photo-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}

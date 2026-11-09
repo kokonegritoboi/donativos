@@ -1,4 +1,4 @@
-const CACHE = 'donativos-v2';
+const CACHE = 'donativos-v3';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'vendor/jsbarcode.min.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', e => {

@@ -116,6 +116,43 @@ function syncMultiple() {
   if (on && !(parseInt($('#f-qty').value, 10) >= 2)) $('#f-qty').value = 2;
   updateTotal();
 }
+const SCREEN_RE = /pantalla|televisi|\btv\b|\btele\b|monitor|laptop|tablet|proyector/i;
+const SIZE_HINTS = {
+  'Electrónicos': 'Ej. 32 pulgadas, 4 GB, 128 GB',
+  'Ropa y calzado': 'Ej. talla M, color azul, 5 piezas',
+  'Muebles': 'Ej. 120 x 60 cm, madera',
+  'Alimentos': 'Ej. 1 kg, caduca 03/2027',
+  'Medicamentos y salud': 'Ej. 500 mg, caduca 03/2027',
+  'Libros y útiles': 'Ej. 3er semestre, pasta dura',
+  'Juguetes': 'Ej. edad recomendada, piezas',
+  'Herramientas': 'Ej. medida, potencia, material'
+};
+const CHOICES = [['#condChips', '#f-condition'], ['#worksChips', '#f-works']];
+function syncChoices() {
+  CHOICES.forEach(([grp, inp]) => {
+    const cur = $(inp).value;
+    $$(grp + ' [data-v]').forEach(b => { const on = b.dataset.v === cur; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  });
+}
+CHOICES.forEach(([grp, inp]) => $(grp).addEventListener('click', e => {
+  const b = e.target.closest('[data-v]');
+  if (!b) return;
+  $(inp).value = (grp === '#worksChips' && $(inp).value === b.dataset.v) ? '' : b.dataset.v;
+  syncChoices();
+}));
+function updateDetailUI() {
+  const isScreen = SCREEN_RE.test($('#f-object').value);
+  $('#inchesWrap').hidden = !isScreen;
+  $('#worksWrap').hidden = !(isScreen || $('#f-category').value === 'Electrónicos');
+  $('#f-size').placeholder = SIZE_HINTS[$('#f-category').value] || 'Ej. talla, medidas, color, capacidad';
+  syncChoices();
+}
+$('#f-object').addEventListener('input', () => {
+  updateDetailUI();
+  if (SCREEN_RE.test($('#f-object').value) && $('#f-category').value !== 'Electrónicos') { $('#f-category').value = 'Electrónicos'; updateDetailUI(); }
+});
+$('#f-category').addEventListener('change', updateDetailUI);
+
 function updateTotal() {
   const t = round2(getQty() * (parseFloat($('#f-unit').value) || 0));
   $('#f-total').textContent = fmtMoney(t);
@@ -180,12 +217,12 @@ let barcodeOk = false;
 function setBarcodeOk(ok) {
   barcodeOk = ok;
   $('#detailFields').disabled = !ok;
-  if (!ok) $('#barcodeHint').textContent = 'Escanea el código de barras que trae el producto (cámara o lector USB) y pulsa Continuar para registrar el donativo.';
+  if (!ok) setHint('Escanea el código de barras del producto y pulsa "Usar este código". El código identifica el donativo; el nombre, la marca y los demás datos los capturas tú.');
 }
-const setHint = t => { $('#barcodeHint').textContent = t; };
+const setHint = t => { $('#barcodeHint').textContent = t; $('#barcodeHint').classList.toggle('note', !!t); };
 
 async function lookupProduct(code) {
-  if (!/^\d{8,14}$/.test(code)) { setHint('Escribe el nombre del objeto.'); return; }
+  if (!/^\d{8,14}$/.test(code)) { setHint('Código guardado. Esta app no tiene base de datos de productos: describe abajo qué es, la marca, el modelo y su estado.'); return; }
   setHint('Buscando el producto...');
   try {
     const ctrl = new AbortController();
@@ -196,11 +233,11 @@ async function lookupProduct(code) {
     const name = [j.product?.product_name, j.product?.brands].filter(Boolean).join(' · ');
     if (j.status === 1 && name && !$('#f-object').value.trim() && $('#f-barcode').value.trim() === code) {
       $('#f-object').value = name;
-      setHint('Nombre encontrado en Open Food Facts; revísalo.');
+      setHint('Se encontró un nombre en Open Food Facts. Revísalo y completa la marca, el modelo y el estado.');
       return;
     }
   } catch (e) { /* sin internet o sin resultado */ }
-  setHint('Producto no encontrado en línea; escribe el nombre del objeto.');
+  setHint('Código guardado. Este producto no aparece en ninguna base de datos en línea, así que no se llena solo: describe abajo qué es, la marca, el modelo y su estado.');
 }
 
 async function confirmBarcode(raw) {
@@ -214,6 +251,12 @@ async function confirmBarcode(raw) {
     $('#f-category').value = prev.category;
     $('#f-unit').value = prev.unit;
     $('#f-condition').value = prev.condition || 'Buen estado';
+    $('#f-brand').value = prev.brand || '';
+    $('#f-model').value = prev.model || '';
+    $('#f-size').value = prev.size || '';
+    $('#f-inches').value = prev.inches || '';
+    $('#f-works').value = prev.works || '';
+    updateDetailUI();
     updateTotal();
     setHint('Producto ya registrado antes: se copiaron nombre, categoría y valor. Revísalos.');
   } else if (!$('#f-object').value.trim()) {
@@ -235,7 +278,9 @@ function resetForm() {
   $('#f-qty').value = 2;
   $('#f-unit').value = 0;
   $('#f-condition').value = 'Buen estado';
+  $('#f-works').value = '';
   setPhoto(null);
+  updateDetailUI();
   syncMultiple();
   $('#formTitle').textContent = 'Nuevo donativo';
   $('#heroSub').textContent = 'Escanea el código de barras del producto para empezar.';
@@ -262,11 +307,17 @@ function startEdit(id) {
   $('#f-object').value = d.object;
   $('#f-category').value = d.category;
   $('#f-condition').value = d.condition || 'Buen estado';
+  $('#f-brand').value = d.brand || '';
+  $('#f-model').value = d.model || '';
+  $('#f-size').value = d.size || '';
+  $('#f-inches').value = d.inches || '';
+  $('#f-works').value = d.works || '';
   $('#f-multiple').checked = !!(d.multiple || d.qty > 1);
   $('#f-qty').value = (d.multiple || d.qty > 1) ? d.qty : 2;
   $('#f-unit').value = d.unit;
   $('#f-notes').value = d.notes || '';
   setPhoto(d.photo);
+  updateDetailUI();
   syncMultiple();
   $('#formTitle').textContent = 'Editar donativo';
   $('#heroSub').textContent = 'Corrige lo que haga falta y guarda los cambios.';
@@ -288,13 +339,20 @@ function readForm() {
   const matricula = $('#f-matricula').value.trim().toUpperCase();
   const email = $('#f-email').value.trim();
   const group = $('#f-group').value.trim().toUpperCase();
+  const condition = $('#f-condition').value;
+  const inches = parseFloat($('#f-inches').value) || 0;
+  const needInches = !$('#inchesWrap').hidden;
   const errors = [];
   if (!barcode) errors.push('Falta el código de barras del producto.');
   if (!donor) errors.push('Falta indicar quién donó.');
   if (!/^[A-Za-z0-9-]{5,15}$/.test(matricula)) errors.push('La matrícula debe tener entre 5 y 15 letras o números.');
   if (!group) errors.push('Falta el grupo.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Escribe un correo institucional válido.');
-  if (!object) errors.push('Falta indicar el objeto donado.');
+  if (!object) errors.push('Falta indicar qué es el objeto donado.');
+  else if (object.length < 3) errors.push('Describe mejor el objeto: escribe qué es exactamente.');
+  if (needInches && !(inches > 0)) errors.push('Indica de cuántas pulgadas es.');
+  if (!condition) errors.push('Elige en qué estado está el objeto.');
+  if (condition === 'Dañado' && !$('#f-notes').value.trim()) errors.push('El objeto está dañado: explica en Notas qué le pasa.');
   if (!date) errors.push('Falta la fecha.');
   if (multiple && !(qty >= 2)) errors.push('En un donativo múltiple indica cuántos fueron (mínimo 2).');
   if (unit < 0) errors.push('El valor por unidad no puede ser negativo.');
@@ -305,7 +363,12 @@ function readForm() {
       total: round2(qty * unit),
       contact: $('#f-contact').value.trim(),
       category: $('#f-category').value,
-      condition: $('#f-condition').value,
+      condition,
+      brand: $('#f-brand').value.trim(),
+      model: $('#f-model').value.trim(),
+      size: $('#f-size').value.trim(),
+      inches: needInches ? inches : 0,
+      works: $('#worksWrap').hidden ? '' : $('#f-works').value,
       notes: $('#f-notes').value.trim(),
       photo: photoData
     }
@@ -351,7 +414,7 @@ function filtered() {
     if (from && d.date < from) return false;
     if (to && d.date > to) return false;
     if (q) {
-      const hay = [d.barcode, d.code, d.matricula, d.group, d.email, d.donor, d.object, d.notes, d.contact, d.category].join(' ').toLowerCase();
+      const hay = [d.barcode, d.code, d.brand, d.model, d.size, d.matricula, d.group, d.email, d.donor, d.object, d.notes, d.contact, d.category].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -389,13 +452,13 @@ function renderList() {
     const multi = d.multiple || d.qty > 1;
     return `
     <li class="dcard ${color}" data-id="${esc(d.id)}">
-      <div class="dc-top"><span class="tag">${esc(d.category)}</span>${multi ? `<span class="tag mult">Múltiple x${fmtNum(d.qty)}</span>` : ''}</div>
+      <div class="dc-top"><span class="tag">${esc(d.category)}</span>${d.condition ? `<span class="tag">${esc(d.condition)}</span>` : ''}${multi ? `<span class="tag mult">Múltiple x${fmtNum(d.qty)}</span>` : ''}</div>
       <div class="dc-main">
         <div class="dc-thumb">${d.photo ? `<img data-act="photo" alt="Foto: ${esc(d.object)}" src="${d.photo}">` : 'Sin foto'}</div>
         <div class="dc-info">
           <h3>${esc(d.object)}</h3>
           <p>${esc(d.donor)}</p>
-          <p class="dc-sub">${d.matricula ? `<span>Mat. ${esc(d.matricula)}</span>` : ''}${d.group ? `<span>${esc(d.group)}</span>` : ''}</p>
+          <p class="dc-sub">${[d.brand, d.model].filter(Boolean).length ? `<span>${esc([d.brand, d.model].filter(Boolean).join(' '))}</span>` : ''}${d.inches ? `<span>${fmtNum(d.inches)} pulg.</span>` : ''}${d.matricula ? `<span>Mat. ${esc(d.matricula)}</span>` : ''}${d.group ? `<span>${esc(d.group)}</span>` : ''}</p>
         </div>
       </div>
       <div class="dc-code"><span>Barras ${esc(d.barcode)}</span><span>${esc(d.code)}</span><span>${esc(fmtDate(d.date))}</span></div>
@@ -481,6 +544,11 @@ function sheetHTML(d) {
       ${cell('Teléfono', d.contact)}
       ${cell('Objeto donado', d.object, true)}
       ${cell('Categoría', d.category)}
+      ${cell('Marca', d.brand)}
+      ${cell('Modelo', d.model)}
+      ${cell('Pulgadas', d.inches ? fmtNum(d.inches) : '')}
+      ${cell('Tamaño o características', d.size, true)}
+      ${cell('¿Funciona?', d.works)}
       ${cell('Donativo múltiple', multi ? 'Sí, ' + fmtNum(d.qty) + ' piezas' : 'No')}
       ${cell('Cantidad', fmtNum(d.qty))}
       ${cell('Valor por unidad', fmtMoney(d.unit))}
@@ -699,9 +767,9 @@ function csvCell(v) {
 }
 $('#btnExportCsv').addEventListener('click', () => {
   if (!donations.length) { toast('No hay donativos que exportar'); return; }
-  const head = ['Código de barras', 'Folio', 'Fecha', 'Donante', 'Matrícula', 'Grupo', 'Correo institucional', 'Donativo múltiple', 'Teléfono', 'Objeto', 'Categoría', 'Estado', 'Cantidad', 'Valor unitario', 'Total', 'Notas'];
+  const head = ['Código de barras', 'Folio', 'Fecha', 'Donante', 'Matrícula', 'Grupo', 'Correo institucional', 'Donativo múltiple', 'Teléfono', 'Objeto', 'Marca', 'Modelo', 'Pulgadas', 'Tamaño o características', '¿Funciona?', 'Categoría', 'Estado', 'Cantidad', 'Valor unitario', 'Total', 'Notas'];
   const rows = [...donations].sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || 0) - (b.createdAt || 0))
-    .map(d => [d.barcode, d.code, d.date, d.donor, d.matricula, d.group, d.email, (d.multiple || d.qty > 1) ? 'Sí' : 'No', d.contact, d.object, d.category, d.condition, d.qty, d.unit, d.total, d.notes].map(csvCell).join(','));
+    .map(d => [d.barcode, d.code, d.date, d.donor, d.matricula, d.group, d.email, (d.multiple || d.qty > 1) ? 'Sí' : 'No', d.contact, d.object, d.brand, d.model, d.inches || '', d.size, d.works, d.category, d.condition, d.qty, d.unit, d.total, d.notes].map(csvCell).join(','));
   const csv = '﻿' + [head.map(csvCell).join(','), ...rows].join('\r\n');
   download(`donativos-${todayISO()}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   toast('CSV exportado');
@@ -727,6 +795,11 @@ function sanitize(d) {
     object: String(d.object).slice(0, 160),
     category: CATEGORIES.includes(d.category) ? d.category : 'Otro',
     condition: String(d.condition || 'Buen estado').slice(0, 40),
+    brand: String(d.brand || '').slice(0, 60),
+    model: String(d.model || '').slice(0, 60),
+    size: String(d.size || '').slice(0, 120),
+    inches: Math.max(0, Number(d.inches) || 0),
+    works: ['Sí', 'No', 'No sé'].includes(d.works) ? d.works : '',
     qty, unit, total: round2(qty * unit),
     notes: String(d.notes || '').slice(0, 500),
     photo

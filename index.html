@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Registro de donativos</title>
+  <meta name="description" content="Control y registro de donativos: quién donó, fecha, objeto, cantidad por valor, hoja imprimible, código de barras y foto.">
+  <meta name="theme-color" content="#1f6f54">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#1f6f54"/><path d="M8 13h16v11H8zM6 9h20v4H6zM16 9v15" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>
+      <div>
+        <h1 id="orgTitle">Registro de donativos</h1>
+        <small id="orgSub">Control de donaciones recibidas</small>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Secciones">
+      <button class="tab active" data-view="registrar">Registrar</button>
+      <button class="tab" data-view="lista">Donativos <span class="badge" id="countBadge">0</span></button>
+      <button class="tab" data-view="resumen">Resumen</button>
+      <button class="tab" data-view="respaldo">Datos</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <!-- REGISTRAR -->
+  <section id="view-registrar" class="view">
+    <div class="card">
+      <div class="card-head">
+        <h2 id="formTitle">Nuevo donativo</h2>
+        <span class="pill" id="editingPill" hidden></span>
+      </div>
+      <form id="donationForm" autocomplete="off" novalidate>
+        <div class="scan-step">
+          <div class="field">
+            <span>Código de barras del producto *</span>
+            <div class="scan-input">
+              <input id="f-barcode" autocomplete="off" maxlength="40" placeholder="Escanea o escribe el código del producto" aria-label="Código de barras del producto">
+              <button type="button" class="btn" id="btnScanForm">Escanear con cámara</button>
+              <button type="button" class="btn primary" id="btnBarcodeOk">Continuar</button>
+            </div>
+          </div>
+          <p class="muted small" id="barcodeHint"></p>
+        </div>
+        <fieldset id="detailFields" class="detail" disabled>
+        <div class="grid">
+          <label class="field span-2">
+            <span>Quién lo donó *</span>
+            <input id="f-donor" list="donorList" required maxlength="120" placeholder="Nombre de la persona o empresa">
+            <datalist id="donorList"></datalist>
+          </label>
+          <label class="field">
+            <span>Teléfono o correo</span>
+            <input id="f-contact" maxlength="120" placeholder="Opcional">
+          </label>
+          <label class="field">
+            <span>Fecha *</span>
+            <input id="f-date" type="date" required>
+          </label>
+          <label class="field span-2">
+            <span>Qué objeto donó *</span>
+            <input id="f-object" required maxlength="160" placeholder="Ej. Silla de ruedas, 10 cobijas, despensa">
+          </label>
+          <label class="field">
+            <span>Categoría</span>
+            <select id="f-category"></select>
+          </label>
+          <label class="field">
+            <span>Estado del objeto</span>
+            <select id="f-condition">
+              <option>Nuevo</option>
+              <option selected>Buen estado</option>
+              <option>Usado</option>
+              <option>Para reparar</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Cantidad *</span>
+            <input id="f-qty" type="number" inputmode="decimal" min="0" step="any" value="1" required>
+          </label>
+          <label class="field">
+            <span>Valor por unidad (MXN)</span>
+            <input id="f-unit" type="number" inputmode="decimal" min="0" step="any" value="0">
+          </label>
+          <div class="field total-box span-2">
+            <span>Valor total (cantidad × valor)</span>
+            <output id="f-total">$0.00</output>
+          </div>
+          <label class="field span-2">
+            <span>Notas</span>
+            <textarea id="f-notes" rows="2" maxlength="500" placeholder="Detalles, marca, número de serie, destino..."></textarea>
+          </label>
+          <div class="field span-2">
+            <span>Foto del objeto donado</span>
+            <div class="photo-row">
+              <div class="photo-preview" id="photoPreview"><em>Sin foto</em></div>
+              <div class="photo-actions">
+                <label class="btn">Tomar foto<input id="f-photo-cam" type="file" accept="image/*" capture="environment" hidden></label>
+                <label class="btn">Elegir de galería<input id="f-photo-file" type="file" accept="image/*" hidden></label>
+                <button type="button" class="btn ghost" id="photoClear" hidden>Quitar foto</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn primary" id="btnSave">Guardar donativo</button>
+          <button type="button" class="btn" id="btnSavePrint">Guardar e imprimir hoja</button>
+          <button type="button" class="btn ghost" id="btnCancelEdit" hidden>Cancelar edición</button>
+        </div>
+        </fieldset>
+        <p class="error" id="formError" role="alert" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- LISTA -->
+  <section id="view-lista" class="view" hidden>
+    <div class="card">
+      <div class="toolbar">
+        <input id="q" type="search" placeholder="Buscar por código de barras, folio, donante u objeto" aria-label="Buscar">
+        <select id="fCategory" aria-label="Categoría"></select>
+        <input id="fFrom" type="date" aria-label="Desde">
+        <input id="fTo" type="date" aria-label="Hasta">
+        <select id="fSort" aria-label="Orden">
+          <option value="date-desc">Más recientes</option>
+          <option value="date-asc">Más antiguos</option>
+          <option value="value-desc">Mayor valor</option>
+          <option value="donor-asc">Donante A–Z</option>
+        </select>
+      </div>
+      <div class="toolbar2">
+        <span id="resultCount" class="muted"></span>
+        <div class="spacer"></div>
+        <button class="btn" id="btnScan">Escanear código</button>
+        <button class="btn" id="btnPrintList">Imprimir listado</button>
+        <button class="btn ghost" id="btnClearFilters">Limpiar filtros</button>
+      </div>
+      <ul id="list" class="list"></ul>
+      <p id="emptyMsg" class="empty" hidden>No hay donativos que coincidan.</p>
+    </div>
+  </section>
+
+  <!-- RESUMEN -->
+  <section id="view-resumen" class="view" hidden>
+    <div class="stats" id="stats"></div>
+    <div class="cols">
+      <div class="card"><h2>Por categoría</h2><div id="byCategory"></div></div>
+      <div class="card"><h2>Principales donantes</h2><div id="byDonor"></div></div>
+    </div>
+    <div class="card"><h2>Últimos 6 meses</h2><div id="byMonth"></div></div>
+  </section>
+
+  <!-- DATOS -->
+  <section id="view-respaldo" class="view" hidden>
+    <div class="card">
+      <h2>Datos de la organización</h2>
+      <p class="muted">Aparecen en el encabezado y en las hojas impresas.</p>
+      <div class="grid">
+        <label class="field"><span>Nombre</span><input id="s-org" maxlength="80" placeholder="Nombre de la organización"></label>
+        <label class="field"><span>Lugar, evento o campaña</span><input id="s-sub" maxlength="100" placeholder="Opcional"></label>
+      </div>
+      <div class="form-actions"><button class="btn primary" id="btnSaveSettings">Guardar</button></div>
+    </div>
+    <div class="card">
+      <h2>Respaldo</h2>
+      <p class="muted">Los donativos se guardan solo en este navegador y este dispositivo. Descarga un respaldo seguido y úsalo para pasar los datos a otro equipo.</p>
+      <div class="form-actions">
+        <button class="btn primary" id="btnExportJson">Descargar respaldo (.json)</button>
+        <button class="btn" id="btnExportCsv">Exportar a Excel (.csv)</button>
+        <label class="btn">Importar respaldo<input id="importFile" type="file" accept="application/json,.json" hidden></label>
+      </div>
+      <p class="muted small" id="storageInfo"></p>
+    </div>
+    <div class="card danger-zone">
+      <h2>Borrar todo</h2>
+      <p class="muted">Elimina todos los donativos de este dispositivo. No se puede deshacer; descarga un respaldo antes.</p>
+      <div class="form-actions"><button class="btn danger" id="btnWipe">Borrar todos los donativos</button></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Hoja de donativo -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-label="Hoja de donativo">
+    <div class="modal-actions">
+      <button class="btn primary" id="btnPrintSheet">Imprimir hoja</button>
+      <button class="btn" id="btnPrintLabel">Imprimir etiqueta</button>
+      <button class="btn ghost" id="btnCloseModal">Cerrar</button>
+    </div>
+    <div id="sheetBox"></div>
+  </div>
+</div>
+
+<!-- Escáner -->
+<div id="scanModal" class="modal" hidden>
+  <div class="modal-box scan-box" role="dialog" aria-modal="true" aria-label="Escanear código de barras">
+    <video id="scanVideo" playsinline muted></video>
+    <p class="muted center" id="scanMsg">Apunta la cámara al código de barras del producto.</p>
+    <div class="modal-actions"><button class="btn ghost" id="btnCloseScan">Cancelar</button></div>
+  </div>
+</div>
+
+<div id="printArea" aria-hidden="true"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/jsbarcode.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -6,9 +6,10 @@ Página web para llevar el control de donativos desde el celular o la computador
 
 - Registra quién donó, la fecha, qué objeto donó, cantidad, valor por unidad y valor total (cantidad × valor).
 - Adjunta una foto del objeto donado (cámara o galería).
-- Genera un folio único por donativo (DON-000001, DON-000002, ...) con código de barras Code 128.
+- Para registrar un donativo primero se escanea (cámara o lector USB) o se escribe el código de barras que trae el producto (EAN-13, UPC, EAN-8 u otro). Ese código es el que sale impreso en la hoja y la etiqueta. Si el producto ya se registró antes, se copian nombre, categoría y valor; si no, intenta buscar el nombre en Open Food Facts.
+- Cada registro también recibe un folio interno (DON-000001, DON-000002, ...).
 - Genera la hoja de donativo lista para imprimir (con foto, código de barras y espacio para firmas), una etiqueta con código de barras y un listado imprimible.
-- Busca y filtra por folio, donante, objeto, categoría y fechas. Escanea el código de barras con la cámara (Chrome en Android) o con un lector USB.
+- Busca y filtra por folio, donante, objeto, categoría y fechas. Encuentra un donativo escaneando el código del producto con la cámara (Chrome en Android) o con un lector USB.
 - Resumen por categoría, donante y mes.
 - Respaldo en JSON, exportación a Excel (CSV) e importación de respaldos.
 - Se puede instalar en el celular como app y abre sin internet.

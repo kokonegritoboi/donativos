@@ -301,3 +301,17 @@ fieldset.detail:disabled{opacity:.38;pointer-events:none}
   .sheet-head{flex-direction:row!important}
   .signs{page-break-inside:avoid}
 }
+
+.co-wrap{display:grid;gap:10px}
+.co-help{margin:0;color:var(--muted);font-size:.86rem}
+#coList{display:grid;gap:10px}
+.co-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:rgba(255,255,255,.7);border:1.5px solid var(--ink);border-radius:var(--r-field);padding:10px}
+.co-row .co-title{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:.9rem}
+.co-row .co-name,.co-row .co-mail{grid-column:1/-1}
+.co-row input{width:100%;min-width:0}
+.co-del{border:1.5px solid var(--ink);background:#fff;border-radius:8px;padding:.15rem .6rem;font:inherit;font-size:.8rem;cursor:pointer}
+.sheet-people{margin-top:1rem;font-size:.85rem}
+.sheet-people h4{margin:0 0 .3rem;font-size:.9rem}
+.sheet-people table{width:100%;border-collapse:collapse}
+.sheet-people th,.sheet-people td{border:1px solid #000;padding:.2rem .4rem;text-align:left}
+.signs.many{grid-template-columns:repeat(2,1fr);gap:2rem 3rem}

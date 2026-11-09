@@ -109,13 +109,41 @@ function fillCategories() {
   $('#fCategory').innerHTML = '<option value="">Todas las categorías</option>' + opts;
 }
 
-const getQty = () => ($('#f-multiple').checked ? (parseInt($('#f-qty').value, 10) || 0) : 1);
+let formQty = 1; // solo cambia al editar registros antiguos que tenían varias piezas
+const getQty = () => formQty;
+const peopleOf = d => 1 + ((d.coDonors && d.coDonors.length) || 0);
+function addCoRow(p = {}) {
+  const row = document.createElement('div');
+  row.className = 'co-row';
+  row.innerHTML = `<div class="co-title"><span class="co-n"></span><button type="button" class="co-del">Quitar</button></div>
+    <label class="field co-name"><span class="lbl">Nombre completo *</span><input class="co-f-name" maxlength="120" placeholder="Nombre de la persona"></label>
+    <label class="field"><span class="lbl">Matrícula *</span><input class="co-f-mat" maxlength="15" autocapitalize="characters" placeholder="Ej. 243110221"></label>
+    <label class="field"><span class="lbl">Grupo *</span><input class="co-f-group" maxlength="30" placeholder="Ej. 3B"></label>
+    <label class="field co-mail"><span class="lbl">Correo institucional *</span><input class="co-f-mail" type="email" maxlength="120" inputmode="email" autocapitalize="none" placeholder="matricula@escuela.edu.mx"></label>`;
+  row.querySelector('.co-f-name').value = p.name || '';
+  row.querySelector('.co-f-mat').value = p.matricula || '';
+  row.querySelector('.co-f-group').value = p.group || '';
+  row.querySelector('.co-f-mail').value = p.email || '';
+  row.querySelector('.co-del').addEventListener('click', () => { row.remove(); numberCo(); });
+  $('#coList').appendChild(row);
+  numberCo();
+}
+function numberCo() { $('#coList').querySelectorAll('.co-n').forEach((el, i) => { el.textContent = 'Persona ' + (i + 2); }); }
+function readCo() {
+  return [...$('#coList').querySelectorAll('.co-row')].map(r => ({
+    name: r.querySelector('.co-f-name').value.trim(),
+    matricula: r.querySelector('.co-f-mat').value.trim().toUpperCase(),
+    group: r.querySelector('.co-f-group').value.trim().toUpperCase(),
+    email: r.querySelector('.co-f-mail').value.trim()
+  }));
+}
 function syncMultiple() {
   const on = $('#f-multiple').checked;
-  $('#qtyWrap').hidden = !on;
-  if (on && !(parseInt($('#f-qty').value, 10) >= 2)) $('#f-qty').value = 2;
+  $('#coWrap').hidden = !on;
+  if (on && !$('#coList').children.length) addCoRow();
   updateTotal();
 }
+$('#btnAddCo').addEventListener('click', () => { if ($('#coList').children.length < 20) addCoRow(); });
 const SCREEN_RE = /pantalla|televisi|\btv\b|\btele\b|monitor|laptop|tablet|proyector/i;
 const SIZE_HINTS = {
   'Electrónicos': 'Ej. 32 pulgadas, 4 GB, 128 GB',
@@ -158,7 +186,7 @@ function updateTotal() {
   $('#f-total').textContent = fmtMoney(t);
   return t;
 }
-['#f-qty', '#f-unit'].forEach(s => $(s).addEventListener('input', updateTotal));
+$('#f-unit').addEventListener('input', updateTotal);
 $('#f-multiple').addEventListener('change', syncMultiple);
 
 function setPhoto(data) {
@@ -275,7 +303,8 @@ function resetForm() {
   $('#donationForm').reset();
   setBarcodeOk(false);
   $('#f-date').value = todayISO();
-  $('#f-qty').value = 2;
+  formQty = 1;
+  $('#coList').innerHTML = '';
   $('#f-unit').value = 0;
   $('#f-condition').value = '';
   $('#f-category').value = 'Otro';
@@ -313,8 +342,10 @@ function startEdit(id) {
   $('#f-size').value = d.size || '';
   $('#f-inches').value = d.inches || '';
   $('#f-works').value = d.works || '';
-  $('#f-multiple').checked = !!(d.multiple || d.qty > 1);
-  $('#f-qty').value = (d.multiple || d.qty > 1) ? d.qty : 2;
+  formQty = d.qty || 1;
+  $('#coList').innerHTML = '';
+  (d.coDonors || []).forEach(addCoRow);
+  $('#f-multiple').checked = (d.coDonors || []).length > 0;
   $('#f-unit').value = d.unit;
   $('#f-notes').value = d.notes || '';
   setPhoto(d.photo);
@@ -334,7 +365,8 @@ function readForm() {
   const object = $('#f-object').value.trim();
   const date = $('#f-date').value;
   const multiple = $('#f-multiple').checked;
-  const qty = multiple ? parseInt($('#f-qty').value, 10) : 1;
+  const qty = getQty();
+  const coDonors = multiple ? readCo() : [];
   const unit = parseFloat($('#f-unit').value) || 0;
   const barcode = $('#f-barcode').value.trim();
   const matricula = $('#f-matricula').value.trim().toUpperCase();
@@ -353,12 +385,19 @@ function readForm() {
   else if (object.length < 3) errors.push('Describe mejor el objeto: escribe qué es exactamente.');
   if (needInches && !(inches > 0)) errors.push('Indica de cuántas pulgadas es.');
   if (!date) errors.push('Falta la fecha.');
-  if (multiple && !(qty >= 2)) errors.push('En un donativo múltiple indica cuántos fueron (mínimo 2).');
+  if (multiple && !coDonors.length) errors.push('En un donativo múltiple agrega al menos a otra persona.');
+  coDonors.forEach((p, i) => {
+    const n = 'Persona ' + (i + 2) + ': ';
+    if (!p.name) errors.push(n + 'falta el nombre.');
+    if (!/^[A-Za-z0-9-]{5,15}$/.test(p.matricula)) errors.push(n + 'la matrícula debe tener entre 5 y 15 letras o números.');
+    if (!p.group) errors.push(n + 'falta el grupo.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) errors.push(n + 'escribe un correo institucional válido.');
+  });
   if (unit < 0) errors.push('El valor por unidad no puede ser negativo.');
   if (errors.length) return { errors };
   return {
     data: {
-      barcode, donor, matricula, group, email, multiple, object, date, qty, unit,
+      barcode, donor, matricula, group, email, multiple, coDonors, object, date, qty, unit,
       total: round2(qty * unit),
       contact: $('#f-contact').value.trim(),
       category: $('#f-category').value,
@@ -413,7 +452,7 @@ function filtered() {
     if (from && d.date < from) return false;
     if (to && d.date > to) return false;
     if (q) {
-      const hay = [d.barcode, d.code, d.brand, d.model, d.size, d.matricula, d.group, d.email, d.donor, d.object, d.notes, d.contact, d.category].join(' ').toLowerCase();
+      const hay = [d.barcode, d.code, d.brand, d.model, d.size, d.matricula, d.group, d.email, d.donor, d.object, d.notes, d.contact, d.category, ...(d.coDonors || []).flatMap(p => [p.name, p.matricula, p.group, p.email])].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -435,10 +474,10 @@ function renderList() {
   $('#emptyMsg').textContent = donations.length ? 'Ningún donativo coincide con los filtros. Prueba con otra búsqueda o limpia los filtros.' : 'Todavía no hay donativos. Registra el primero escaneando un código de barras.';
   $('#list').innerHTML = list.map((d, i) => {
     const color = PALETTE[i % PALETTE.length];
-    const multi = d.multiple || d.qty > 1;
+    const people = peopleOf(d);
     return `
     <li class="dcard ${color}" data-id="${esc(d.id)}">
-      <div class="dc-top">${d.category && d.category !== 'Otro' ? `<span class="tag">${esc(d.category)}</span>` : ''}${d.condition ? `<span class="tag">${esc(d.condition)}</span>` : ''}${multi ? `<span class="tag mult">Múltiple x${fmtNum(d.qty)}</span>` : ''}</div>
+      <div class="dc-top">${d.category && d.category !== 'Otro' ? `<span class="tag">${esc(d.category)}</span>` : ''}${d.condition ? `<span class="tag">${esc(d.condition)}</span>` : ''}${people > 1 ? `<span class="tag mult">${fmtNum(people)} donantes</span>` : ''}</div>
       <div class="dc-main">
         <div class="dc-thumb">${d.photo ? `<img data-act="photo" alt="Foto: ${esc(d.object)}" src="${d.photo}">` : 'Sin foto'}</div>
         <div class="dc-info">
@@ -449,7 +488,7 @@ function renderList() {
       </div>
       <div class="dc-code"><span>Barras ${esc(d.barcode)}</span><span>${esc(d.code)}</span><span>${esc(fmtDate(d.date))}</span></div>
       <div class="dc-foot">
-        <div class="dc-amount"><b>${fmtMoney(d.total)}</b><small>${fmtNum(d.qty)} x ${fmtMoney(d.unit)}</small></div>
+        <div class="dc-amount"><b>${fmtMoney(d.total)}</b><small>${d.qty > 1 ? fmtNum(d.qty) + ' x ' + fmtMoney(d.unit) : 'Valor del producto'}</small></div>
         <div class="dc-actions">
           <button class="btn sm primary" data-act="sheet">Ver hoja</button>
           <button class="btn sm" data-act="edit">Editar</button>
@@ -511,7 +550,7 @@ $('#week').addEventListener('click', e => {
 /* ============ Hoja de donativo ============ */
 function sheetHTML(d) {
   const sub = Settings.sub;
-  const multi = d.multiple || d.qty > 1;
+  const co = d.coDonors || [];
   const cell = (label, value, wide) => value ? `<div${wide ? ' class="wide"' : ''}><dt>${label}</dt><dd>${esc(value)}</dd></div>` : '';
   return `<article class="sheet">
     <header class="sheet-head">
@@ -535,20 +574,21 @@ function sheetHTML(d) {
       ${cell('Pulgadas', d.inches ? fmtNum(d.inches) : '')}
       ${cell('Tamaño o características', d.size, true)}
       ${cell('¿Funciona?', d.works)}
-      ${cell('Donativo múltiple', multi ? 'Sí, ' + fmtNum(d.qty) + ' piezas' : 'No')}
-      ${cell('Cantidad', fmtNum(d.qty))}
-      ${cell('Valor por unidad', fmtMoney(d.unit))}
-      <div class="wide sheet-total"><dt>Valor total (cantidad x valor)</dt><dd>${fmtMoney(d.total)}</dd></div>
+      ${cell('Donativo múltiple', co.length ? 'Sí, donaron ' + fmtNum(co.length + 1) + ' personas' : 'No')}
+      ${d.qty > 1 ? cell('Cantidad', fmtNum(d.qty)) : ''}
+      ${cell(d.qty > 1 ? 'Valor por unidad' : 'Valor del producto', fmtMoney(d.unit))}
+      <div class="wide sheet-total"><dt>Valor total</dt><dd>${fmtMoney(d.total)}</dd></div>
       ${cell('Notas', d.notes, true)}
     </dl>
+    ${co.length ? `<div class="sheet-people"><h4>Otras personas que donaron este producto</h4><table><thead><tr><th>Nombre</th><th>Matrícula</th><th>Grupo</th><th>Correo institucional</th></tr></thead><tbody>${co.map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.matricula)}</td><td>${esc(p.group)}</td><td>${esc(p.email)}</td></tr>`).join('')}</tbody></table></div>` : ''}
     ${d.photo ? `<figure><img alt="Foto del objeto donado" src="${d.photo}"><figcaption>Foto del objeto donado</figcaption></figure>` : ''}
-    <div class="signs"><div>Firma de quien dona</div><div>Firma de quien recibe</div></div>
+    <div class="signs${co.length ? ' many' : ''}">${co.length ? [d.donor, ...co.map(p => p.name)].map(n => `<div>Firma: ${esc(n)}</div>`).join('') : '<div>Firma de quien dona</div>'}<div>Firma de quien recibe</div></div>
     <footer class="sheet-foot"><span>${esc(d.code)}</span><span>Impreso el ${esc(new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }))}</span></footer>
   </article>`;
 }
 
 function labelHTML(d) {
-  return `<div class="label"><svg class="barcode" data-code="${esc(d.barcode)}" data-format="${barcodeFormat(d.barcode)}"></svg><b>${esc(d.object)}</b>${esc(d.donor)}${d.matricula ? ', ' + esc(d.matricula) : ''}<br>${esc(fmtDate(d.date))}, ${fmtNum(d.qty)} x ${fmtMoney(d.unit)} = ${fmtMoney(d.total)}</div>`;
+  return `<div class="label"><svg class="barcode" data-code="${esc(d.barcode)}" data-format="${barcodeFormat(d.barcode)}"></svg><b>${esc(d.object)}</b>${esc(d.donor)}${(d.coDonors || []).length ? ' y ' + fmtNum(d.coDonors.length) + ' más' : ''}${d.matricula ? ', ' + esc(d.matricula) : ''}<br>${esc(fmtDate(d.date))}, ${d.qty > 1 ? fmtNum(d.qty) + ' x ' + fmtMoney(d.unit) + ' = ' : ''}${fmtMoney(d.total)}</div>`;
 }
 
 function renderBarcodes(root) {
@@ -607,7 +647,7 @@ $('#btnPrintList').addEventListener('click', () => {
   const list = filtered();
   if (!list.length) { toast('No hay donativos para imprimir'); return; }
   const total = list.reduce((s, d) => s + d.total, 0);
-  const rows = list.map(d => `<tr><td>${esc(d.barcode)}</td><td>${esc(d.code)}</td><td>${esc(fmtDate(d.date))}</td><td>${esc(d.donor)}</td><td>${esc(d.matricula || '')}</td><td>${esc(d.group || '')}</td><td>${esc(d.object)}</td><td>${esc(d.category)}</td><td class="r">${fmtNum(d.qty)}</td><td class="r">${fmtMoney(d.unit)}</td><td class="r">${fmtMoney(d.total)}</td></tr>`).join('');
+  const rows = list.map(d => `<tr><td>${esc(d.barcode)}</td><td>${esc(d.code)}</td><td>${esc(fmtDate(d.date))}</td><td>${esc([d.donor, ...(d.coDonors || []).map(p => p.name)].join('; '))}</td><td>${esc([d.matricula, ...(d.coDonors || []).map(p => p.matricula)].filter(Boolean).join('; '))}</td><td>${esc([d.group, ...(d.coDonors || []).map(p => p.group)].filter(Boolean).join('; '))}</td><td>${esc(d.object)}</td><td>${esc(d.category)}</td><td class="r">${fmtNum(d.qty)}</td><td class="r">${fmtMoney(d.unit)}</td><td class="r">${fmtMoney(d.total)}</td></tr>`).join('');
   doPrint(`<div class="report"><h2>${esc(Settings.org)}</h2><p>Listado de donativos · ${list.length} registros · generado el ${esc(new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }))}</p>
     <table><thead><tr><th>Código de barras</th><th>Folio</th><th>Fecha</th><th>Donante</th><th>Matrícula</th><th>Grupo</th><th>Objeto</th><th>Categoría</th><th class="r">Cant.</th><th class="r">Valor u.</th><th class="r">Total</th></tr></thead>
     <tbody>${rows}</tbody><tfoot><tr><th colspan="10" class="r">Total</th><th class="r">${fmtMoney(total)}</th></tr></tfoot></table></div>`);
@@ -756,7 +796,7 @@ function barRows(rows, fmtLabel = x => x) {
 function renderSummary() {
   const total = donations.reduce((s, d) => s + d.total, 0);
   const pieces = donations.reduce((s, d) => s + d.qty, 0);
-  const donors = new Set(donations.map(d => d.donor.trim().toLowerCase())).size;
+  const donors = new Set(donations.flatMap(d => [d.donor, ...(d.coDonors || []).map(p => p.name)]).map(n => String(n).trim().toLowerCase())).size;
   $('#stats').innerHTML = [
     ['Donativos registrados', fmtNum(donations.length)],
     ['Piezas o unidades', fmtNum(pieces)],
@@ -807,9 +847,9 @@ function csvCell(v) {
 }
 $('#btnExportCsv').addEventListener('click', () => {
   if (!donations.length) { toast('No hay donativos que exportar'); return; }
-  const head = ['Código de barras', 'Folio', 'Fecha', 'Donante', 'Matrícula', 'Grupo', 'Correo institucional', 'Donativo múltiple', 'Teléfono', 'Objeto', 'Marca', 'Modelo', 'Pulgadas', 'Tamaño o características', '¿Funciona?', 'Categoría', 'Estado', 'Cantidad', 'Valor unitario', 'Total', 'Notas'];
+  const head = ['Código de barras', 'Folio', 'Fecha', 'Donante', 'Matrícula', 'Grupo', 'Correo institucional', 'Donativo múltiple', 'Otros donantes', 'Teléfono', 'Objeto', 'Marca', 'Modelo', 'Pulgadas', 'Tamaño o características', '¿Funciona?', 'Categoría', 'Estado', 'Cantidad', 'Valor unitario', 'Total', 'Notas'];
   const rows = [...donations].sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || 0) - (b.createdAt || 0))
-    .map(d => [d.barcode, d.code, d.date, d.donor, d.matricula, d.group, d.email, (d.multiple || d.qty > 1) ? 'Sí' : 'No', d.contact, d.object, d.brand, d.model, d.inches || '', d.size, d.works, d.category, d.condition, d.qty, d.unit, d.total, d.notes].map(csvCell).join(','));
+    .map(d => [d.barcode, d.code, d.date, d.donor, d.matricula, d.group, d.email, (d.coDonors || []).length ? 'Sí' : 'No', (d.coDonors || []).map(p => `${p.name} (${p.matricula}, ${p.group}, ${p.email})`).join(' | '), d.contact, d.object, d.brand, d.model, d.inches || '', d.size, d.works, d.category, d.condition, d.qty, d.unit, d.total, d.notes].map(csvCell).join(','));
   const csv = '﻿' + [head.map(csvCell).join(','), ...rows].join('\r\n');
   download(`donativos-${todayISO()}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   toast('CSV exportado');
@@ -829,7 +869,8 @@ function sanitize(d) {
     matricula: String(d.matricula || '').slice(0, 20),
     group: String(d.group || '').slice(0, 30),
     email: String(d.email || '').slice(0, 120),
-    multiple: d.multiple === true || (d.multiple === undefined && qty > 1),
+    multiple: Array.isArray(d.coDonors) && d.coDonors.length > 0,
+    coDonors: (Array.isArray(d.coDonors) ? d.coDonors : []).slice(0, 20).map(p => ({ name: String(p && p.name || '').slice(0, 120), matricula: String(p && p.matricula || '').slice(0, 20), group: String(p && p.group || '').slice(0, 30), email: String(p && p.email || '').slice(0, 120) })).filter(p => p.name),
     contact: String(d.contact || '').slice(0, 120),
     date: String(d.date).slice(0, 10),
     object: String(d.object).slice(0, 160),

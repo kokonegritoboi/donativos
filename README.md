@@ -4,9 +4,9 @@ Página web para llevar el control de donativos desde el celular o la computador
 
 ## Qué hace
 
-- Registra quién donó (nombre, matrícula, grupo, correo institucional y teléfono opcional), la fecha, qué objeto donó, cantidad, valor por unidad y valor total (cantidad × valor).
+- Registra quién donó (nombre, matrícula, grupo, correo institucional y teléfono opcional), la fecha, qué objeto donó y su valor.
 - Describe el objeto con detalle: qué es, marca, modelo, tamaño o características y, si es una pantalla, las pulgadas y si funciona.
-- Donativo múltiple: un interruptor indica si fueron varias piezas y pide cuántas fueron (mínimo 2); la cantidad se multiplica por el valor por unidad.
+- Donativo múltiple: un interruptor indica que varias personas donaron entre todas un mismo producto; se agregan los datos de cada persona (nombre, matrícula, grupo y correo). La hoja impresa lista a todos y trae una firma por persona.
 - Adjunta una foto del objeto donado (cámara o galería).
 - Escáner con cámara: en Chrome/Android usa el detector del navegador; en iPhone (Safari) carga la librería ZXing desde internet (jsDelivr) la primera vez y requiere permitir la cámara en Ajustes > Safari > Cámara.
 - Para registrar un donativo primero se escanea (cámara o lector USB) o se escribe el código de barras que trae el producto (EAN-13, UPC, EAN-8 u otro). Ese código es el que sale impreso en la hoja y la etiqueta. Si el producto ya se registró antes, se copian nombre, categoría y valor; si no, intenta buscar el nombre en Open Food Facts.

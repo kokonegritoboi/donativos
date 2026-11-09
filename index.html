@@ -160,19 +160,20 @@
                     <input id="f-date" type="date" required>
                   </label>
                   <label class="field">
-                    <span class="lbl">Valor por unidad (MXN)</span>
+                    <span class="lbl">Valor del producto (MXN)</span>
                     <input id="f-unit" type="number" inputmode="decimal" min="0" step="any" value="0">
                   </label>
                   <div class="multi span-2">
                     <label class="switch">
                       <input id="f-multiple" type="checkbox" role="switch">
                       <span class="track" aria-hidden="true"></span>
-                      <span class="switch-text"><b>Donativo múltiple</b><small>Marca esta opción si donó varias piezas del mismo objeto.</small></span>
+                      <span class="switch-text"><b>Donativo múltiple</b><small>Actívalo si varias personas donaron entre todas este mismo producto.</small></span>
                     </label>
-                    <label class="field qty-wrap" id="qtyWrap" hidden>
-                      <span class="lbl">¿Cuántos fueron? *</span>
-                      <input id="f-qty" type="number" inputmode="numeric" min="2" step="1" value="2">
-                    </label>
+                    <div class="co-wrap" id="coWrap" hidden>
+                      <p class="co-help">Arriba va la primera persona. Agrega aquí a las demás.</p>
+                      <div id="coList"></div>
+                      <button type="button" class="btn ghost" id="btnAddCo">Agregar otra persona</button>
+                    </div>
                   </div>
                   <label class="field span-2">
                     <span class="lbl">Notas</span>
@@ -194,7 +195,7 @@
               </section>
 
               <section class="card dark b-total">
-                <span class="lbl-dark">Valor total (cantidad x valor)</span>
+                <span class="lbl-dark">Valor total</span>
                 <output id="f-total">$0.00</output>
                 <div class="form-actions">
                   <button type="submit" class="btn primary" id="btnSave">Guardar donativo</button>

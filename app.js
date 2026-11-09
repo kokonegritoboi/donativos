@@ -93,13 +93,14 @@ let currentSheetId = null;
 /* ============ Navegación ============ */
 function showView(name) {
   $$('.view').forEach(v => v.hidden = v.id !== 'view-' + name);
-  $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === name));
+  $$('.nav-btn').forEach(t => { const on = t.dataset.view === name; t.classList.toggle('active', on); if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });
   if (name === 'lista') renderList();
   if (name === 'resumen') renderSummary();
   if (name === 'respaldo') renderData();
   window.scrollTo({ top: 0 });
 }
-$$('.tab').forEach(t => t.addEventListener('click', () => showView(t.dataset.view)));
+$$('.nav-btn').forEach(t => t.addEventListener('click', () => showView(t.dataset.view)));
+$('#btnTopSearch').addEventListener('click', () => { showView('lista'); $('#q').focus(); });
 
 /* ============ Formulario ============ */
 function fillCategories() {
@@ -108,12 +109,20 @@ function fillCategories() {
   $('#fCategory').innerHTML = '<option value="">Todas las categorías</option>' + opts;
 }
 
+const getQty = () => ($('#f-multiple').checked ? (parseInt($('#f-qty').value, 10) || 0) : 1);
+function syncMultiple() {
+  const on = $('#f-multiple').checked;
+  $('#qtyWrap').hidden = !on;
+  if (on && !(parseInt($('#f-qty').value, 10) >= 2)) $('#f-qty').value = 2;
+  updateTotal();
+}
 function updateTotal() {
-  const t = round2((parseFloat($('#f-qty').value) || 0) * (parseFloat($('#f-unit').value) || 0));
+  const t = round2(getQty() * (parseFloat($('#f-unit').value) || 0));
   $('#f-total').textContent = fmtMoney(t);
   return t;
 }
 ['#f-qty', '#f-unit'].forEach(s => $(s).addEventListener('input', updateTotal));
+$('#f-multiple').addEventListener('change', syncMultiple);
 
 function setPhoto(data) {
   photoData = data || null;
@@ -150,7 +159,22 @@ function compressImage(file, max = 1000, quality = 0.75) {
 function refreshDonorList() {
   const donors = [...new Set(donations.map(d => d.donor).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
   $('#donorList').innerHTML = donors.map(n => `<option value="${esc(n)}"></option>`).join('');
+  const groups = [...new Set(donations.map(d => d.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+  $('#groupList').innerHTML = groups.map(n => `<option value="${esc(n)}"></option>`).join('');
 }
+
+// Si la matrícula ya se registró, se completan los datos de la persona
+$('#f-matricula').addEventListener('change', () => {
+  const m = $('#f-matricula').value.trim().toLowerCase();
+  if (!m) return;
+  const prev = donations.filter(d => (d.matricula || '').toLowerCase() === m && d.id !== editingId).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+  if (!prev) return;
+  if (!$('#f-donor').value.trim()) $('#f-donor').value = prev.donor;
+  if (!$('#f-email').value.trim()) $('#f-email').value = prev.email || '';
+  if (!$('#f-group').value.trim()) $('#f-group').value = prev.group || '';
+  if (!$('#f-contact').value.trim()) $('#f-contact').value = prev.contact || '';
+  toast('Se completaron los datos de esta matrícula');
+});
 
 let barcodeOk = false;
 function setBarcodeOk(ok) {
@@ -208,12 +232,13 @@ function resetForm() {
   $('#donationForm').reset();
   setBarcodeOk(false);
   $('#f-date').value = todayISO();
-  $('#f-qty').value = 1;
+  $('#f-qty').value = 2;
   $('#f-unit').value = 0;
   $('#f-condition').value = 'Buen estado';
   setPhoto(null);
-  updateTotal();
+  syncMultiple();
   $('#formTitle').textContent = 'Nuevo donativo';
+  $('#heroSub').textContent = 'Escanea el código de barras del producto para empezar.';
   $('#editingPill').hidden = true;
   $('#btnCancelEdit').hidden = true;
   $('#btnSave').textContent = 'Guardar donativo';
@@ -229,17 +254,22 @@ function startEdit(id) {
   setBarcodeOk(true);
   setHint('');
   $('#f-donor').value = d.donor;
+  $('#f-matricula').value = d.matricula || '';
+  $('#f-group').value = d.group || '';
+  $('#f-email').value = d.email || '';
   $('#f-contact').value = d.contact || '';
   $('#f-date').value = d.date;
   $('#f-object').value = d.object;
   $('#f-category').value = d.category;
   $('#f-condition').value = d.condition || 'Buen estado';
-  $('#f-qty').value = d.qty;
+  $('#f-multiple').checked = !!(d.multiple || d.qty > 1);
+  $('#f-qty').value = (d.multiple || d.qty > 1) ? d.qty : 2;
   $('#f-unit').value = d.unit;
   $('#f-notes').value = d.notes || '';
   setPhoto(d.photo);
-  updateTotal();
+  syncMultiple();
   $('#formTitle').textContent = 'Editar donativo';
+  $('#heroSub').textContent = 'Corrige lo que haga falta y guarda los cambios.';
   $('#editingPill').textContent = d.code;
   $('#editingPill').hidden = false;
   $('#btnCancelEdit').hidden = false;
@@ -251,20 +281,27 @@ function readForm() {
   const donor = $('#f-donor').value.trim();
   const object = $('#f-object').value.trim();
   const date = $('#f-date').value;
-  const qty = parseFloat($('#f-qty').value);
+  const multiple = $('#f-multiple').checked;
+  const qty = multiple ? parseInt($('#f-qty').value, 10) : 1;
   const unit = parseFloat($('#f-unit').value) || 0;
   const barcode = $('#f-barcode').value.trim();
+  const matricula = $('#f-matricula').value.trim().toUpperCase();
+  const email = $('#f-email').value.trim();
+  const group = $('#f-group').value.trim().toUpperCase();
   const errors = [];
   if (!barcode) errors.push('Falta el código de barras del producto.');
   if (!donor) errors.push('Falta indicar quién donó.');
+  if (!/^[A-Za-z0-9-]{5,15}$/.test(matricula)) errors.push('La matrícula debe tener entre 5 y 15 letras o números.');
+  if (!group) errors.push('Falta el grupo.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Escribe un correo institucional válido.');
   if (!object) errors.push('Falta indicar el objeto donado.');
   if (!date) errors.push('Falta la fecha.');
-  if (!(qty > 0)) errors.push('La cantidad debe ser mayor que 0.');
+  if (multiple && !(qty >= 2)) errors.push('En un donativo múltiple indica cuántos fueron (mínimo 2).');
   if (unit < 0) errors.push('El valor por unidad no puede ser negativo.');
   if (errors.length) return { errors };
   return {
     data: {
-      barcode, donor, object, date, qty, unit,
+      barcode, donor, matricula, group, email, multiple, object, date, qty, unit,
       total: round2(qty * unit),
       contact: $('#f-contact').value.trim(),
       category: $('#f-category').value,
@@ -314,7 +351,7 @@ function filtered() {
     if (from && d.date < from) return false;
     if (to && d.date > to) return false;
     if (q) {
-      const hay = [d.barcode, d.code, d.donor, d.object, d.notes, d.contact, d.category].join(' ').toLowerCase();
+      const hay = [d.barcode, d.code, d.matricula, d.group, d.email, d.donor, d.object, d.notes, d.contact, d.category].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -327,28 +364,53 @@ function filtered() {
   return list;
 }
 
+const PALETTE = ['sun', 'lilac', 'sky', 'pink', 'peach', 'mint'];
+function renderChips() {
+  const cur = $('#fCategory').value;
+  const items = [['', 'Todos'], ...CATEGORIES.map(c => [c, c])];
+  $('#catChips').innerHTML = items.map(([v, l]) => `<button type="button" class="chip-btn${v === cur ? ' active' : ''}" data-cat="${esc(v)}" aria-pressed="${v === cur}">${esc(l)}</button>`).join('');
+}
+$('#catChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-cat]');
+  if (!b) return;
+  $('#fCategory').value = b.dataset.cat;
+  renderList();
+});
+
 function renderList() {
+  renderChips();
   const list = filtered();
   const total = list.reduce((s, d) => s + d.total, 0);
-  $('#resultCount').textContent = `${list.length} de ${donations.length} donativos · ${fmtMoney(total)}`;
+  $('#resultCount').textContent = `${list.length} de ${donations.length} donativos, ${fmtMoney(total)}`;
   $('#emptyMsg').hidden = list.length > 0;
-  $('#emptyMsg').textContent = donations.length ? 'No hay donativos que coincidan con los filtros.' : 'Todavía no hay donativos registrados.';
-  $('#list').innerHTML = list.map(d => `
-    <li class="row" data-id="${esc(d.id)}">
-      <div class="thumb">${d.photo ? `<img data-act="photo" alt="Foto: ${esc(d.object)}" src="${d.photo}">` : 'Sin foto'}</div>
-      <div class="info">
-        <strong>${esc(d.object)}<span class="tag">${esc(d.category)}</span></strong>
-        <div class="meta">Barras ${esc(d.barcode)} · ${esc(d.code)} · ${esc(d.donor)} · ${esc(fmtDate(d.date))}</div>
+  $('#emptyMsg').textContent = donations.length ? 'Ningún donativo coincide con los filtros. Prueba con otra búsqueda o limpia los filtros.' : 'Todavía no hay donativos. Registra el primero escaneando un código de barras.';
+  $('#list').innerHTML = list.map(d => {
+    const color = PALETTE[Math.max(0, CATEGORIES.indexOf(d.category)) % PALETTE.length];
+    const multi = d.multiple || d.qty > 1;
+    return `
+    <li class="dcard ${color}" data-id="${esc(d.id)}">
+      <div class="dc-top"><span class="tag">${esc(d.category)}</span>${multi ? `<span class="tag mult">Múltiple x${fmtNum(d.qty)}</span>` : ''}</div>
+      <div class="dc-main">
+        <div class="dc-thumb">${d.photo ? `<img data-act="photo" alt="Foto: ${esc(d.object)}" src="${d.photo}">` : 'Sin foto'}</div>
+        <div class="dc-info">
+          <h3>${esc(d.object)}</h3>
+          <p>${esc(d.donor)}</p>
+          <p class="dc-sub">${d.matricula ? `<span>Mat. ${esc(d.matricula)}</span>` : ''}${d.group ? `<span>${esc(d.group)}</span>` : ''}</p>
+        </div>
       </div>
-      <div class="amount"><b>${fmtMoney(d.total)}</b><small>${fmtNum(d.qty)} × ${fmtMoney(d.unit)}</small></div>
-      <div class="actions">
-        <button class="btn sm" data-act="sheet">Hoja</button>
-        <button class="btn sm" data-act="edit">Editar</button>
-        <button class="btn sm ghost" data-act="del">Eliminar</button>
+      <div class="dc-code"><span>Barras ${esc(d.barcode)}</span><span>${esc(d.code)}</span><span>${esc(fmtDate(d.date))}</span></div>
+      <div class="dc-foot">
+        <div class="dc-amount"><b>${fmtMoney(d.total)}</b><small>${fmtNum(d.qty)} x ${fmtMoney(d.unit)}</small></div>
+        <div class="dc-actions">
+          <button class="btn sm primary" data-act="sheet">Ver hoja</button>
+          <button class="btn sm" data-act="edit">Editar</button>
+          <button class="btn sm ghost" data-act="del">Eliminar</button>
+        </div>
       </div>
-    </li>`).join('');
+    </li>`;
+  }).join('');
 }
-['#q', '#fCategory', '#fFrom', '#fTo', '#fSort'].forEach(s => $(s).addEventListener('input', renderList));
+['#q', '#fFrom', '#fTo', '#fSort'].forEach(s => $(s).addEventListener('input', renderList));
 $('#btnClearFilters').addEventListener('click', () => {
   $('#q').value = ''; $('#fCategory').value = ''; $('#fFrom').value = ''; $('#fTo').value = ''; $('#fSort').value = 'date-desc';
   renderList();
@@ -357,7 +419,7 @@ $('#btnClearFilters').addEventListener('click', () => {
 $('#list').addEventListener('click', async e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
-  const id = el.closest('.row').dataset.id;
+  const id = el.closest('.dcard').dataset.id;
   const act = el.dataset.act;
   if (act === 'sheet' || act === 'photo') openSheet(id);
   else if (act === 'edit') startEdit(id);
@@ -371,28 +433,59 @@ $('#list').addEventListener('click', async e => {
   }
 });
 
-function updateBadge() { $('#countBadge').textContent = donations.length; }
+function updateBadge() {
+  $$('.count-badge').forEach(b => { b.textContent = donations.length; });
+  $('#statToday').textContent = donations.filter(d => d.date === todayISO()).length;
+  $('#statTotal').textContent = fmtMoney(donations.reduce((s, d) => s + d.total, 0));
+  renderWeek();
+}
+
+function renderWeek() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+  const names = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const withDonations = new Set(donations.map(d => d.date));
+  $('#week').innerHTML = names.map((n, i) => {
+    const dt = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const iso = dt.toLocaleDateString('en-CA');
+    return `<button type="button" class="day${iso === todayISO() ? ' today' : ''}" data-date="${iso}" aria-label="Ver donativos del ${esc(fmtDate(iso))}"><i class="dot${withDonations.has(iso) ? ' on' : ''}"></i><span>${n}</span><b>${dt.getDate()}</b></button>`;
+  }).join('');
+}
+$('#week').addEventListener('click', e => {
+  const b = e.target.closest('.day');
+  if (!b) return;
+  $('#fFrom').value = b.dataset.date;
+  $('#fTo').value = b.dataset.date;
+  showView('lista');
+});
 
 /* ============ Hoja de donativo ============ */
 function sheetHTML(d) {
   const sub = Settings.sub;
+  const multi = d.multiple || d.qty > 1;
+  const cell = (label, value, wide) => value ? `<div${wide ? ' class="wide"' : ''}><dt>${label}</dt><dd>${esc(value)}</dd></div>` : '';
   return `<article class="sheet">
     <header class="sheet-head">
-      <div><h2>${esc(Settings.org)}</h2><p>Hoja de donativo${sub ? ' · ' + esc(sub) : ''}</p></div>
+      <div><h2>${esc(Settings.org)}</h2><p>Hoja de donativo${sub ? ', ' + esc(sub) : ''}</p></div>
       <div class="sheet-code"><svg class="barcode" data-code="${esc(d.barcode)}" data-format="${barcodeFormat(d.barcode)}"></svg></div>
     </header>
     <dl class="sheet-grid">
-      <div><dt>Código de barras del producto</dt><dd>${esc(d.barcode)}</dd></div>
-      <div><dt>Fecha</dt><dd>${esc(fmtDate(d.date))}</dd></div>
-      <div><dt>Folio de registro</dt><dd>${esc(d.code)}</dd></div>
-      <div><dt>Estado</dt><dd>${esc(d.condition || '')}</dd></div>
-      <div class="wide"><dt>Quién lo donó</dt><dd>${esc(d.donor)}${d.contact ? ' · ' + esc(d.contact) : ''}</dd></div>
-      <div class="wide"><dt>Objeto donado</dt><dd>${esc(d.object)}</dd></div>
-      <div class="wide"><dt>Categoría</dt><dd>${esc(d.category)}</dd></div>
-      <div><dt>Cantidad</dt><dd>${fmtNum(d.qty)}</dd></div>
-      <div><dt>Valor por unidad</dt><dd>${fmtMoney(d.unit)}</dd></div>
-      <div class="wide sheet-total"><dt>Valor total (cantidad × valor)</dt><dd>${fmtMoney(d.total)}</dd></div>
-      ${d.notes ? `<div class="wide"><dt>Notas</dt><dd>${esc(d.notes)}</dd></div>` : ''}
+      ${cell('Código de barras del producto', d.barcode)}
+      ${cell('Fecha', fmtDate(d.date))}
+      ${cell('Folio de registro', d.code)}
+      ${cell('Estado del objeto', d.condition)}
+      ${cell('Quién lo donó', d.donor, true)}
+      ${cell('Matrícula', d.matricula)}
+      ${cell('Grupo', d.group)}
+      ${cell('Correo institucional', d.email, true)}
+      ${cell('Teléfono', d.contact)}
+      ${cell('Objeto donado', d.object, true)}
+      ${cell('Categoría', d.category)}
+      ${cell('Donativo múltiple', multi ? 'Sí, ' + fmtNum(d.qty) + ' piezas' : 'No')}
+      ${cell('Cantidad', fmtNum(d.qty))}
+      ${cell('Valor por unidad', fmtMoney(d.unit))}
+      <div class="wide sheet-total"><dt>Valor total (cantidad x valor)</dt><dd>${fmtMoney(d.total)}</dd></div>
+      ${cell('Notas', d.notes, true)}
     </dl>
     ${d.photo ? `<figure><img alt="Foto del objeto donado" src="${d.photo}"><figcaption>Foto del objeto donado</figcaption></figure>` : ''}
     <div class="signs"><div>Firma de quien dona</div><div>Firma de quien recibe</div></div>
@@ -401,7 +494,7 @@ function sheetHTML(d) {
 }
 
 function labelHTML(d) {
-  return `<div class="label"><svg class="barcode" data-code="${esc(d.barcode)}" data-format="${barcodeFormat(d.barcode)}"></svg><b>${esc(d.object)}</b>${esc(d.donor)} · ${esc(fmtDate(d.date))}<br>${fmtNum(d.qty)} × ${fmtMoney(d.unit)} = ${fmtMoney(d.total)}</div>`;
+  return `<div class="label"><svg class="barcode" data-code="${esc(d.barcode)}" data-format="${barcodeFormat(d.barcode)}"></svg><b>${esc(d.object)}</b>${esc(d.donor)}${d.matricula ? ', ' + esc(d.matricula) : ''}<br>${esc(fmtDate(d.date))}, ${fmtNum(d.qty)} x ${fmtMoney(d.unit)} = ${fmtMoney(d.total)}</div>`;
 }
 
 function renderBarcodes(root) {
@@ -460,10 +553,10 @@ $('#btnPrintList').addEventListener('click', () => {
   const list = filtered();
   if (!list.length) { toast('No hay donativos para imprimir'); return; }
   const total = list.reduce((s, d) => s + d.total, 0);
-  const rows = list.map(d => `<tr><td>${esc(d.barcode)}</td><td>${esc(d.code)}</td><td>${esc(fmtDate(d.date))}</td><td>${esc(d.donor)}</td><td>${esc(d.object)}</td><td>${esc(d.category)}</td><td class="r">${fmtNum(d.qty)}</td><td class="r">${fmtMoney(d.unit)}</td><td class="r">${fmtMoney(d.total)}</td></tr>`).join('');
+  const rows = list.map(d => `<tr><td>${esc(d.barcode)}</td><td>${esc(d.code)}</td><td>${esc(fmtDate(d.date))}</td><td>${esc(d.donor)}</td><td>${esc(d.matricula || '')}</td><td>${esc(d.group || '')}</td><td>${esc(d.object)}</td><td>${esc(d.category)}</td><td class="r">${fmtNum(d.qty)}</td><td class="r">${fmtMoney(d.unit)}</td><td class="r">${fmtMoney(d.total)}</td></tr>`).join('');
   doPrint(`<div class="report"><h2>${esc(Settings.org)}</h2><p>Listado de donativos · ${list.length} registros · generado el ${esc(new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }))}</p>
-    <table><thead><tr><th>Código de barras</th><th>Folio</th><th>Fecha</th><th>Donante</th><th>Objeto</th><th>Categoría</th><th class="r">Cant.</th><th class="r">Valor u.</th><th class="r">Total</th></tr></thead>
-    <tbody>${rows}</tbody><tfoot><tr><th colspan="8" class="r">Total</th><th class="r">${fmtMoney(total)}</th></tr></tfoot></table></div>`);
+    <table><thead><tr><th>Código de barras</th><th>Folio</th><th>Fecha</th><th>Donante</th><th>Matrícula</th><th>Grupo</th><th>Objeto</th><th>Categoría</th><th class="r">Cant.</th><th class="r">Valor u.</th><th class="r">Total</th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><th colspan="10" class="r">Total</th><th class="r">${fmtMoney(total)}</th></tr></tfoot></table></div>`);
 });
 
 /* ============ Escáner de código de barras ============ */
@@ -565,6 +658,8 @@ function renderSummary() {
   $('#byCategory').innerHTML = barRows(groupSum(donations, d => d.category).sort((a, b) => b.total - a.total));
   $('#byDonor').innerHTML = barRows(groupSum(donations, d => d.donor.trim()).sort((a, b) => b.total - a.total || b.count - a.count).slice(0, 8));
 
+  $('#byGroup').innerHTML = barRows(groupSum(donations.filter(d => d.group), d => d.group.trim()).sort((a, b) => b.total - a.total || b.count - a.count).slice(0, 8));
+
   const months = [];
   const now = new Date();
   for (let i = 5; i >= 0; i--) {
@@ -604,9 +699,9 @@ function csvCell(v) {
 }
 $('#btnExportCsv').addEventListener('click', () => {
   if (!donations.length) { toast('No hay donativos que exportar'); return; }
-  const head = ['Código de barras', 'Folio', 'Fecha', 'Donante', 'Contacto', 'Objeto', 'Categoría', 'Estado', 'Cantidad', 'Valor unitario', 'Total', 'Notas'];
+  const head = ['Código de barras', 'Folio', 'Fecha', 'Donante', 'Matrícula', 'Grupo', 'Correo institucional', 'Donativo múltiple', 'Teléfono', 'Objeto', 'Categoría', 'Estado', 'Cantidad', 'Valor unitario', 'Total', 'Notas'];
   const rows = [...donations].sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || 0) - (b.createdAt || 0))
-    .map(d => [d.barcode, d.code, d.date, d.donor, d.contact, d.object, d.category, d.condition, d.qty, d.unit, d.total, d.notes].map(csvCell).join(','));
+    .map(d => [d.barcode, d.code, d.date, d.donor, d.matricula, d.group, d.email, (d.multiple || d.qty > 1) ? 'Sí' : 'No', d.contact, d.object, d.category, d.condition, d.qty, d.unit, d.total, d.notes].map(csvCell).join(','));
   const csv = '﻿' + [head.map(csvCell).join(','), ...rows].join('\r\n');
   download(`donativos-${todayISO()}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   toast('CSV exportado');
@@ -623,6 +718,10 @@ function sanitize(d) {
     barcode: String(d.barcode || d.code || '').slice(0, 40),
     createdAt: Number(d.createdAt) || Date.now(),
     donor: String(d.donor).slice(0, 120),
+    matricula: String(d.matricula || '').slice(0, 20),
+    group: String(d.group || '').slice(0, 30),
+    email: String(d.email || '').slice(0, 120),
+    multiple: d.multiple === true || (d.multiple === undefined && qty > 1),
     contact: String(d.contact || '').slice(0, 120),
     date: String(d.date).slice(0, 10),
     object: String(d.object).slice(0, 160),
@@ -702,6 +801,7 @@ document.addEventListener('keydown', e => {
 
 /* ============ Inicio ============ */
 (async function init() {
+  $('#todayPill').textContent = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' });
   fillCategories();
   applySettings();
   try {

@@ -144,20 +144,8 @@
                     <span class="lbl">Tamaño o características</span>
                     <input id="f-size" maxlength="120" placeholder="Ej. talla, medidas, color, capacidad">
                   </label>
-                  <label class="field span-2">
-                    <span class="lbl">Categoría</span>
-                    <select id="f-category"></select>
-                  </label>
-                  <div class="field span-2">
-                    <span class="lbl" id="condLbl">¿En qué estado está? *</span>
-                    <div class="seg" id="condChips" role="radiogroup" aria-labelledby="condLbl">
-                      <button type="button" role="radio" data-v="Nuevo">Nuevo</button>
-                      <button type="button" role="radio" data-v="Buen estado">Buen estado</button>
-                      <button type="button" role="radio" data-v="Regular">Regular</button>
-                      <button type="button" role="radio" data-v="Dañado">Dañado</button>
-                    </div>
-                    <input type="hidden" id="f-condition" value="Buen estado">
-                  </div>
+                  <select id="f-category" hidden aria-hidden="true"></select>
+                  <input type="hidden" id="f-condition" value="">
                   <div class="field span-2" id="worksWrap" hidden>
                     <span class="lbl" id="worksLbl">¿Funciona?</span>
                     <div class="seg" id="worksChips" role="radiogroup" aria-labelledby="worksLbl">
@@ -188,7 +176,7 @@
                   </div>
                   <label class="field span-2">
                     <span class="lbl">Notas</span>
-                    <textarea id="f-notes" rows="2" maxlength="500" placeholder="Qué le pasa si está dañado, número de serie, destino..."></textarea>
+                    <textarea id="f-notes" rows="2" maxlength="500" placeholder="Número de serie, detalles, destino..."></textarea>
                   </label>
                 </div>
               </section>
@@ -229,7 +217,6 @@
             <input id="q" type="search" placeholder="Código, matrícula, grupo, donante u objeto" aria-label="Buscar">
           </div>
         </div>
-        <div class="chips" id="catChips" role="group" aria-label="Categorías"></div>
         <select id="fCategory" hidden aria-hidden="true"></select>
         <div class="filters">
           <label class="mini"><span>Desde</span><input id="fFrom" type="date"></label>
@@ -259,7 +246,6 @@
         <h2 class="page-title">Resumen</h2>
         <div class="stats" id="stats"></div>
         <div class="cols">
-          <div class="card paper"><h3>Por categoría</h3><div id="byCategory"></div></div>
           <div class="card paper"><h3>Principales donantes</h3><div id="byDonor"></div></div>
           <div class="card paper"><h3>Por grupo</h3><div id="byGroup"></div></div>
           <div class="card paper"><h3>Últimos 6 meses</h3><div id="byMonth"></div></div>

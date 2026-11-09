@@ -127,7 +127,7 @@ const SIZE_HINTS = {
   'Juguetes': 'Ej. edad recomendada, piezas',
   'Herramientas': 'Ej. medida, potencia, material'
 };
-const CHOICES = [['#condChips', '#f-condition'], ['#worksChips', '#f-works']];
+const CHOICES = [['#worksChips', '#f-works']];
 function syncChoices() {
   CHOICES.forEach(([grp, inp]) => {
     const cur = $(inp).value;
@@ -143,13 +143,13 @@ CHOICES.forEach(([grp, inp]) => $(grp).addEventListener('click', e => {
 function updateDetailUI() {
   const isScreen = SCREEN_RE.test($('#f-object').value);
   $('#inchesWrap').hidden = !isScreen;
-  $('#worksWrap').hidden = !(isScreen || $('#f-category').value === 'Electrónicos');
+  $('#worksWrap').hidden = !isScreen;
   $('#f-size').placeholder = SIZE_HINTS[$('#f-category').value] || 'Ej. talla, medidas, color, capacidad';
   syncChoices();
 }
 $('#f-object').addEventListener('input', () => {
+  $('#f-category').value = SCREEN_RE.test($('#f-object').value) ? 'Electrónicos' : 'Otro';
   updateDetailUI();
-  if (SCREEN_RE.test($('#f-object').value) && $('#f-category').value !== 'Electrónicos') { $('#f-category').value = 'Electrónicos'; updateDetailUI(); }
 });
 $('#f-category').addEventListener('change', updateDetailUI);
 
@@ -222,7 +222,7 @@ function setBarcodeOk(ok) {
 const setHint = t => { $('#barcodeHint').textContent = t; $('#barcodeHint').classList.toggle('note', !!t); };
 
 async function lookupProduct(code) {
-  if (!/^\d{8,14}$/.test(code)) { setHint('Código guardado. Esta app no tiene base de datos de productos: describe abajo qué es, la marca, el modelo y su estado.'); return; }
+  if (!/^\d{8,14}$/.test(code)) { setHint('Código guardado. Esta app no tiene base de datos de productos: describe abajo qué es, la marca, el modelo y las medidas.'); return; }
   setHint('Buscando el producto...');
   try {
     const ctrl = new AbortController();
@@ -233,11 +233,11 @@ async function lookupProduct(code) {
     const name = [j.product?.product_name, j.product?.brands].filter(Boolean).join(' · ');
     if (j.status === 1 && name && !$('#f-object').value.trim() && $('#f-barcode').value.trim() === code) {
       $('#f-object').value = name;
-      setHint('Se encontró un nombre en Open Food Facts. Revísalo y completa la marca, el modelo y el estado.');
+      setHint('Se encontró un nombre en Open Food Facts. Revísalo y completa la marca, el modelo y las medidas.');
       return;
     }
   } catch (e) { /* sin internet o sin resultado */ }
-  setHint('Código guardado. Este producto no aparece en ninguna base de datos en línea, así que no se llena solo: describe abajo qué es, la marca, el modelo y su estado.');
+  setHint('Código guardado. Este producto no aparece en ninguna base de datos en línea, así que no se llena solo: describe abajo qué es, la marca, el modelo y las medidas.');
 }
 
 async function confirmBarcode(raw) {
@@ -250,7 +250,7 @@ async function confirmBarcode(raw) {
     $('#f-object').value = prev.object;
     $('#f-category').value = prev.category;
     $('#f-unit').value = prev.unit;
-    $('#f-condition').value = prev.condition || 'Buen estado';
+    $('#f-condition').value = prev.condition || '';
     $('#f-brand').value = prev.brand || '';
     $('#f-model').value = prev.model || '';
     $('#f-size').value = prev.size || '';
@@ -277,7 +277,8 @@ function resetForm() {
   $('#f-date').value = todayISO();
   $('#f-qty').value = 2;
   $('#f-unit').value = 0;
-  $('#f-condition').value = 'Buen estado';
+  $('#f-condition').value = '';
+  $('#f-category').value = 'Otro';
   $('#f-works').value = '';
   setPhoto(null);
   updateDetailUI();
@@ -306,7 +307,7 @@ function startEdit(id) {
   $('#f-date').value = d.date;
   $('#f-object').value = d.object;
   $('#f-category').value = d.category;
-  $('#f-condition').value = d.condition || 'Buen estado';
+  $('#f-condition').value = d.condition || '';
   $('#f-brand').value = d.brand || '';
   $('#f-model').value = d.model || '';
   $('#f-size').value = d.size || '';
@@ -351,8 +352,6 @@ function readForm() {
   if (!object) errors.push('Falta indicar qué es el objeto donado.');
   else if (object.length < 3) errors.push('Describe mejor el objeto: escribe qué es exactamente.');
   if (needInches && !(inches > 0)) errors.push('Indica de cuántas pulgadas es.');
-  if (!condition) errors.push('Elige en qué estado está el objeto.');
-  if (condition === 'Dañado' && !$('#f-notes').value.trim()) errors.push('El objeto está dañado: explica en Notas qué le pasa.');
   if (!date) errors.push('Falta la fecha.');
   if (multiple && !(qty >= 2)) errors.push('En un donativo múltiple indica cuántos fueron (mínimo 2).');
   if (unit < 0) errors.push('El valor por unidad no puede ser negativo.');
@@ -428,31 +427,18 @@ function filtered() {
 }
 
 const PALETTE = ['sun', 'lilac', 'sky', 'pink', 'peach', 'mint'];
-function renderChips() {
-  const cur = $('#fCategory').value;
-  const items = [['', 'Todos'], ...CATEGORIES.map(c => [c, c])];
-  $('#catChips').innerHTML = items.map(([v, l]) => `<button type="button" class="chip-btn${v === cur ? ' active' : ''}" data-cat="${esc(v)}" aria-pressed="${v === cur}">${esc(l)}</button>`).join('');
-}
-$('#catChips').addEventListener('click', e => {
-  const b = e.target.closest('[data-cat]');
-  if (!b) return;
-  $('#fCategory').value = b.dataset.cat;
-  renderList();
-});
-
 function renderList() {
-  renderChips();
   const list = filtered();
   const total = list.reduce((s, d) => s + d.total, 0);
   $('#resultCount').textContent = `${list.length} de ${donations.length} donativos, ${fmtMoney(total)}`;
   $('#emptyMsg').hidden = list.length > 0;
   $('#emptyMsg').textContent = donations.length ? 'Ningún donativo coincide con los filtros. Prueba con otra búsqueda o limpia los filtros.' : 'Todavía no hay donativos. Registra el primero escaneando un código de barras.';
-  $('#list').innerHTML = list.map(d => {
-    const color = PALETTE[Math.max(0, CATEGORIES.indexOf(d.category)) % PALETTE.length];
+  $('#list').innerHTML = list.map((d, i) => {
+    const color = PALETTE[i % PALETTE.length];
     const multi = d.multiple || d.qty > 1;
     return `
     <li class="dcard ${color}" data-id="${esc(d.id)}">
-      <div class="dc-top"><span class="tag">${esc(d.category)}</span>${d.condition ? `<span class="tag">${esc(d.condition)}</span>` : ''}${multi ? `<span class="tag mult">Múltiple x${fmtNum(d.qty)}</span>` : ''}</div>
+      <div class="dc-top">${d.category && d.category !== 'Otro' ? `<span class="tag">${esc(d.category)}</span>` : ''}${d.condition ? `<span class="tag">${esc(d.condition)}</span>` : ''}${multi ? `<span class="tag mult">Múltiple x${fmtNum(d.qty)}</span>` : ''}</div>
       <div class="dc-main">
         <div class="dc-thumb">${d.photo ? `<img data-act="photo" alt="Foto: ${esc(d.object)}" src="${d.photo}">` : 'Sin foto'}</div>
         <div class="dc-info">
@@ -630,6 +616,7 @@ $('#btnPrintList').addEventListener('click', () => {
 /* ============ Escáner de código de barras ============ */
 let scanStream = null, scanTimer = null;
 function stopScan() {
+  scanSession++;
   clearTimeout(scanTimer);
   if (scanStream) scanStream.getTracks().forEach(t => t.stop());
   scanStream = null;
@@ -643,41 +630,95 @@ function matchesFor(raw) {
   return donations.filter(d => (d.barcode || '').toUpperCase() === c || d.code.toUpperCase() === c);
 }
 
-async function openScanner(onCode) {
-  if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
-    toast('Este navegador no escanea con cámara. Usa un lector de código de barras o escribe el código.');
-    return;
+let scanSession = 0;
+let zxingPromise = null;
+function loadZXing() {
+  if (window.ZXing) return Promise.resolve();
+  if (!zxingPromise) zxingPromise = new Promise((ok, fail) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+    sc.onload = ok;
+    sc.onerror = () => { zxingPromise = null; sc.remove(); fail(new Error('zxing')); };
+    document.head.appendChild(sc);
+  });
+  return zxingPromise;
+}
+// Chrome/Android usan BarcodeDetector; iPhone (Safari) usa la librería ZXing
+async function makeDetector() {
+  if ('BarcodeDetector' in window) {
+    let formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
+    try { const sup = await BarcodeDetector.getSupportedFormats(); formats = formats.filter(f => sup.includes(f)); } catch (e) { /* usar lista completa */ }
+    const det = new BarcodeDetector({ formats });
+    return async video => { const f = await det.detect(video); return f.length ? f[0].rawValue : null; };
   }
-  try {
-    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-  } catch (err) {
-    toast('No se pudo abrir la cámara. Revisa los permisos del navegador.');
-    return;
-  }
-  const video = $('#scanVideo');
-  video.srcObject = scanStream;
-  await video.play().catch(() => {});
-  $('#scanModal').hidden = false;
-  $('#scanMsg').textContent = 'Apunta la cámara al código de barras del producto.';
-  let formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
-  try { const sup = await BarcodeDetector.getSupportedFormats(); formats = formats.filter(f => sup.includes(f)); } catch (e) { /* usar lista completa */ }
-  const detector = new BarcodeDetector({ formats });
-  const tick = async () => {
-    if (!scanStream) return;
+  await loadZXing();
+  const Z = window.ZXing;
+  const hints = new Map();
+  hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.ITF]);
+  hints.set(Z.DecodeHintType.TRY_HARDER, true);
+  const reader = new Z.MultiFormatReader();
+  reader.setHints(hints);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  return async video => {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) return null;
+    const k = Math.min(1, 900 / vw);
+    canvas.width = Math.round(vw * k); canvas.height = Math.round(vh * k);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     try {
-      const found = await detector.detect(video);
-      if (found.length) {
-        const raw = found[0].rawValue;
+      const bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(canvas)));
+      return reader.decode(bmp).getText();
+    } catch (e) { return null; }
+  };
+}
+
+async function openScanner(onCode) {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    toast('Este navegador no permite usar la cámara. Escribe el código o usa un lector de código de barras.');
+    return;
+  }
+  const id = ++scanSession;
+  $('#scanModal').hidden = false;
+  $('#scanMsg').textContent = 'Preparando la cámara...';
+  let detect;
+  try { detect = await makeDetector(); } catch (e) {
+    if (scanSession === id) { stopScan(); toast('No se pudo cargar el lector. Revisa tu internet o escribe el código.'); }
+    return;
+  }
+  if (scanSession !== id) return;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+  } catch (err) {
+    if (scanSession === id) {
+      stopScan();
+      toast(err && err.name === 'NotAllowedError' ? 'La cámara está bloqueada. En iPhone: Ajustes > Safari > Cámara > Permitir.' : 'No se pudo abrir la cámara.');
+    }
+    return;
+  }
+  if (scanSession !== id) { stream.getTracks().forEach(t => t.stop()); return; }
+  scanStream = stream;
+  const video = $('#scanVideo');
+  video.setAttribute('playsinline', '');
+  video.muted = true;
+  video.srcObject = stream;
+  try { await video.play(); } catch (e) { /* se reintenta al detectar */ }
+  $('#scanMsg').textContent = 'Apunta la cámara al código de barras del producto.';
+  const tick = async () => {
+    if (scanSession !== id || !scanStream) return;
+    try {
+      const raw = await detect(video);
+      if (raw) {
         if (onCode(raw) !== false) { stopScan(); return; }
         $('#scanMsg').textContent = 'Código leído (' + raw + ') pero no está registrado aquí.';
       }
     } catch (e) { /* seguir intentando */ }
-    scanTimer = setTimeout(tick, 300);
+    scanTimer = setTimeout(tick, 250);
   };
   tick();
 }
 
-// Buscar un donativo escaneando
 $('#btnScan').addEventListener('click', () => openScanner(raw => {
   const m = matchesFor(raw);
   if (!m.length) return false;
@@ -723,7 +764,6 @@ function renderSummary() {
     ['Donantes distintos', fmtNum(donors)]
   ].map(([l, v]) => `<div class="stat"><small>${l}</small><b>${v}</b></div>`).join('');
 
-  $('#byCategory').innerHTML = barRows(groupSum(donations, d => d.category).sort((a, b) => b.total - a.total));
   $('#byDonor').innerHTML = barRows(groupSum(donations, d => d.donor.trim()).sort((a, b) => b.total - a.total || b.count - a.count).slice(0, 8));
 
   $('#byGroup').innerHTML = barRows(groupSum(donations.filter(d => d.group), d => d.group.trim()).sort((a, b) => b.total - a.total || b.count - a.count).slice(0, 8));
@@ -794,7 +834,7 @@ function sanitize(d) {
     date: String(d.date).slice(0, 10),
     object: String(d.object).slice(0, 160),
     category: CATEGORIES.includes(d.category) ? d.category : 'Otro',
-    condition: String(d.condition || 'Buen estado').slice(0, 40),
+    condition: String(d.condition || '').slice(0, 40),
     brand: String(d.brand || '').slice(0, 60),
     model: String(d.model || '').slice(0, 60),
     size: String(d.size || '').slice(0, 120),
